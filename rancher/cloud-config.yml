@@ -1,0 +1,242 @@
+#cloud-config
+hostname: myhost
+
+rancher:
+  disable:
+    - password
+    - autologin
+
+  network:
+    interfaces:
+      eth0:
+        addresses:
+          - 10.0.2.15/24
+        gateway: 10.0.2.254
+        dhcp: false
+        post_up:
+          - ip route add 192.168.0.0/16 via 10.0.2.253
+    dns:
+      nameservers:
+        - 8.8.4.4
+        - 4.2.2.3
+    http_proxy: http://myproxy.example.com
+    https_proxy: http://myproxy.example.com
+    no_proxy: localhost,127.0.0.1
+    post_cmds:
+      - /var/lib/iptables/rules.sh
+
+  sysctl:
+    net.ipv4.tcp_timestamps: 0
+
+  ssh:
+    listen_address: 10.0.2.15
+    port: 22
+
+  services:
+    console:
+      environment:
+        TZ: JST-9
+
+runcmd:
+  - crond -c /var/spool/cron/crontabs
+
+write_files:
+  - path: /etc/rc.local
+    owner: root:root
+    permissions: "0755"
+    content: |
+      #!/bin/bash
+      echo OK
+
+  - path: /etc/profile.d/rancheros.sh
+    owner: root:root
+    permissions: "0644"
+    content: |
+      alias ll='ls -alF'
+      alias la='ls -A'
+      alias l='ls -CF'
+      alias view='vi -R'
+
+  - path: /etc/docker/certs.d/myregistrydomain.com:5000/ca.crt
+    owner: root:root
+    permissions: "0644"
+    content: |
+      -----BEGIN CERTIFICATE-----
+      MIIDJjCCAg4CCQDLCSjwGXM72TANBgkqhkiG9w0BAQUFADBVMQswCQYDVQQGEwJB
+      VTETMBEGA1UECBMKU29tZS1TdGF0ZTEhMB8GA1UEChMYSW50ZXJuZXQgV2lkZ2l0
+      cyBQdHkgTHRkMQ4wDAYDVQQDEwVhbGVuYTAeFw0xNTA3MjMwMzUzMDdaFw0xNjA3
+      MjIwMzUzMDdaMFUxCzAJBgNVBAYTAkFVMRMwEQYDVQQIEwpTb21lLVN0YXRlMSEw
+      HwYDVQQKExhJbnRlcm5ldCBXaWRnaXRzIFB0eSBMdGQxDjAMBgNVBAMTBWFsZW5h
+      MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAxdVIDGlAySQmighbfNqb
+      TtqetENPXjNNq1JasIjGGZdOsmFvNciroNBgCps/HPJphICQwtHpNeKv4+ZuL0Yg
+      1FECgW7oo6DOET74swUywtq/2IOeik+i+7skmpu1o9uNC+Fo+twpgHnGAaGk8IFm
+      fP5gDgthrWBWlEPTPY1tmPjI2Hepu2hJ28SzdXi1CpjfFYOiWL8cUlvFBdyNqzqT
+      uo6M2QCgSX3E1kXLnipRT6jUh0HokhFK4htAQ3hTBmzcxRkgTVZ/D0hA5lAocMKX
+      EVP1Tlw0y1ext2ppS1NR9Sg46GP4+ATgT1m3ae7rWjQGuBEB6DyDgyxdEAvmAEH4
+      LQIDAQABMA0GCSqGSIb3DQEBBQUAA4IBAQA45V0bnGPhIIkb54Gzjt9jyPJxPVTW
+      mwTCP+0jtfLxAor5tFuCERVs8+cLw1wASfu4vH/yHJ/N/CW92yYmtqoGLuTsywJt
+      u1+amECJaLyq0pZ5EjHqLjeys9yW728IifDxbQDX0cj7bBjYYzzUXp0DB/dtWb/U
+      KdBmT1zYeKWmSxkXDFFSpL/SGKoqx3YLTdcIbgNHwKNMfTgD+wTZ/fvk0CLxye4P
+      n/1ZWdSeZPAgjkha5MTUw3o1hjo/0H0ekI4erZFrZnG2N3lDaqDPR8djR+x7Gv6E
+      vloANkUoc1pvzvxKoz2HIHUKf+xFT50xppx6wsQZ01pNMSNF0qgc1vvH
+      -----END CERTIFICATE-----
+
+  - path: /home/rancher/.gitconfig
+    permissions: "0644"
+    owner: rancher:rancher
+    content: |
+      [http]
+        proxy = http://myproxy.example.com
+      [http "http://*.example.com/"]
+        proxy =
+      [http "https://*.example.com/"]
+        proxy =
+        sslCAInfo = /etc/docker/certs.d/myregistrydomain.com:5000/ca.crt
+
+  - path: /usr/bin/git
+    owner: root:root
+    permissions: "0755"
+    content: |
+      #!/bin/bash
+      IMAGE="alpine/git"
+      
+      VOLUMES="-v /opt:/opt -v ${HOME}:/root -v $(pwd):/git"
+      if [ -d "/etc/docker/certs.d" ]; then
+          VOLUMES="$VOLUMES -v /etc/docker/certs.d:/etc/docker/certs.d"
+      fi
+      
+      if [ -t 0 -a -t 1 ]; then
+          DOCKER_RUN_OPTIONS="$DOCKER_RUN_OPTIONS -t"
+      fi
+      DOCKER_RUN_OPTIONS="$DOCKER_RUN_OPTIONS -i"
+      
+      docker run --rm $DOCKER_RUN_OPTIONS $VOLUMES $IMAGE "$@"
+
+  - path: /usr/bin/docker-compose
+    owner: root:root
+    permissions: "0755"
+    content: |
+      #!/bin/bash
+      #
+      # Run docker-compose in a container
+      #
+      # This script will attempt to mirror the host paths by using volumes for the
+      # following paths:
+      #   * /var/run/docker.sock
+      #   * /opt
+      #   * $(pwd)
+      #   * $(dirname ${-f | --file argument}) if it's set
+      #   * $HOME if it's set
+      #
+      set -e
+      
+      VERSION="1.24.1"
+      IMAGE="docker/compose:$VERSION"
+      
+      # Setup volume mounts for compose config and context
+      VOLUMES="-v /var/run/docker.sock:/var/run/docker.sock -v /opt:/opt"
+      if [ "$(pwd)" != '/' ]; then
+          VOLUMES="$VOLUMES -v $(pwd):$(pwd)"
+      fi
+      for arg in "$@"; do
+          if [ -v _COMPOSE_FILE_CONTEXT ]; then
+              if [ -f "$arg" ]; then
+                  COMPOSE_DIR=$(realpath $(dirname $arg))
+                  if [ "$COMPOSE_DIR" != '/' ]; then
+                      VOLUMES="$VOLUMES -v $COMPOSE_DIR:$COMPOSE_DIR"
+                  fi
+              fi
+              break
+          fi
+          if [[ "$arg" =~ ^--file=* ]]; then
+              COMPOSE_DIR=$(realpath $(dirname ${arg:7}))
+              if [ "$COMPOSE_DIR" != '/' ]; then
+                  VOLUMES="$VOLUMES -v $COMPOSE_DIR:$COMPOSE_DIR"
+              fi
+              break
+          fi
+          if [ "$arg" == '-f' -o "$arg" == '--file' ]; then
+             _COMPOSE_FILE_CONTEXT=1
+          fi
+      done
+      if [ -n "$HOME" -a "$HOME" != '/' ]; then
+          VOLUMES="$VOLUMES -v $HOME:$HOME -v $HOME:/root" # mount $HOME in /root to share docker.config
+      fi
+      
+      # Only allocate tty if we detect one
+      if [ -t 0 -a -t 1 ]; then
+          DOCKER_RUN_OPTIONS="$DOCKER_RUN_OPTIONS -t"
+      fi
+      
+      # Always set -i to support piped and terminal input in run/exec
+      DOCKER_RUN_OPTIONS="$DOCKER_RUN_OPTIONS -i"
+
+      # Handle userns security
+      if [ ! -z "$(docker info 2>/dev/null | grep userns)" ]; then
+          DOCKER_RUN_OPTIONS="$DOCKER_RUN_OPTIONS --userns=host"
+      fi
+      
+      docker run --rm $DOCKER_RUN_OPTIONS $VOLUMES -w "$(pwd)" $IMAGE "$@"
+
+  - path: /var/spool/cron/crontabs/rancher
+    owner: rancher:rancher
+    permissions: "0600"
+    content: |
+      0 0 * * * echo backup
+
+  - container: network
+    path: /var/lib/iptables/rules.sh
+    owner: root:root
+    permissions: "0700"
+    content: |
+      #!/bin/bash
+      set -ex
+      
+      # Base policy
+      iptables -P INPUT DROP
+      iptables -P FORWARD DROP
+      iptables -P OUTPUT ACCEPT
+      
+      # Don't attempt to firewall internal traffic on the non-ethernet device.
+      iptables -A INPUT ! -i eth+ -j ACCEPT
+      
+      # Continue connections that are already established or related to an established connection.
+      iptables -A INPUT -m conntrack --ctstate RELATED,ESTABLISHED -j ACCEPT
+      
+      # Drop non-conforming packets, such as malformed headers, etc.
+      iptables -A INPUT -m conntrack --ctstate INVALID -j DROP
+      
+      # Block remote packets claiming to be from a loopback address.
+      iptables -A INPUT -s 127.0.0.0/8 -j DROP
+      
+      # Drop all packets that are going to broadcast, multicast or anycast address.
+      iptables -A INPUT -m addrtype --dst-type BROADCAST -j DROP
+      iptables -A INPUT -m addrtype --dst-type MULTICAST -j DROP
+      iptables -A INPUT -m addrtype --dst-type ANYCAST -j DROP
+      iptables -A INPUT -d 224.0.0.0/4 -j DROP
+      
+      # Accept SSH on the eth0 device.
+      iptables -A INPUT -p tcp -s 10.0.2.0/24 -i eth0 -d 10.0.2.15 --dport 22 --syn -m conntrack --ctstate NEW -j ACCEPT
+      
+      # Permit useful IMCP packet types.
+      iptables -A INPUT -p icmp --icmp-type 0  -m conntrack --ctstate NEW -j ACCEPT
+      iptables -A INPUT -p icmp --icmp-type 3  -m conntrack --ctstate NEW -j ACCEPT
+      iptables -A INPUT -p icmp --icmp-type 8  -m conntrack --ctstate NEW -j ACCEPT
+      iptables -A INPUT -p icmp --icmp-type 11 -m conntrack --ctstate NEW -j ACCEPT
+      # the last line of the file needs to be a blank line or a comment
+
+  - container: ntp
+    path: /etc/ntp.conf
+    owner: root:root
+    permissions: "0644"
+    content: |
+      server 0.pool.ntp.org iburst
+      server 1.pool.ntp.org iburst
+      server 2.pool.ntp.org iburst
+      server 3.pool.ntp.org iburst
+      
+      # Allow only time queries, at a limited rate, sending KoD when in excess.
+      # Allow all local queries (IPv4, IPv6)
+      restrict default nomodify nopeer noquery limited kod
+      restrict 127.0.0.1
+      restrict [::1]

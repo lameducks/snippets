@@ -1,0 +1,22 @@
+[user]
+  name = lameducks
+  email = lameducks@users.noreply.github.com
+
+[core]
+  quotepath = false
+
+[color "branch"]
+  current = yellow bold reverse
+  local = yellow bold
+  remote = green bold
+
+[color "diff"]
+  meta = yellow bold
+  frag = magenta bold
+  old = red bold
+  new = green bold
+
+[color "status"]
+  added = yellow bold
+  changed = green bold
+  untracked = cyan bold

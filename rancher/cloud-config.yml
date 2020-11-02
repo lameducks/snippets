@@ -133,7 +133,7 @@ write_files:
       #
       set -e
       
-      VERSION="latest"
+      VERSION="1.27.4"
       IMAGE="docker/compose:$VERSION"
       
       # Setup volume mounts for compose config and context

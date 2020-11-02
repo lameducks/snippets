@@ -1,0 +1,5 @@
+logging:
+  level:
+    app: DEBUG
+  pattern:
+    console: "%-5p %d{HH:mm:ss.SSS} [%t] %c{0} - %m%n"

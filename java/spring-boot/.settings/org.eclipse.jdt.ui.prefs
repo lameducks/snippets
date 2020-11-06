@@ -1,5 +1,4 @@
 eclipse.preferences.version=1
-formatter_profile=_Eclipse based style
 formatter_settings_version=20
 org.eclipse.jdt.ui.ignorelowercasenames=true
 org.eclipse.jdt.ui.importorder=\#;app;;java;javax;

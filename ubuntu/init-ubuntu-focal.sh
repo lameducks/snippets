@@ -56,10 +56,11 @@ systemctl restart sshd
 sudo systemctl enable docker
 cat << '_EOF_' > /etc/docker/daemon.json
 {
-  "log-driver": "journald"
+  "log-driver": "journald",
+  "live-restore": true
 }
 _EOF_
-sudo systemctl restart docker
+sudo systemctl reload docker
 
 # Sort password file and group file
 pwck -s

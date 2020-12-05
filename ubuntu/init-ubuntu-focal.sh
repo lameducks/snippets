@@ -23,12 +23,20 @@ apt -y autoremove
 
 # Mask unnecessary units
 systemctl mask \
+    apport-autoreport.path \
+    apport-forward.socket \
     atd.service \
+    blk-availability.service \
     lvm2-lvmpolld.socket \
     lvm2-monitor.service \
+    mdcheck_continue.timer \
+    mdcheck_start.timer \
     mdmonitor-oneshot.timer \
     motd-news.timer \
-    remote-fs.target
+    multipathd.service \
+    multipathd.socket \
+    remote-fs.target \
+    rsync.service
 
 # Setup timezone and NTP server
 timedatectl set-timezone Asia/Tokyo
@@ -38,6 +46,11 @@ systemctl restart systemd-timesyncd
 # Setup motd
 sed -i 's/^printf/#printf/' /etc/update-motd.d/10-help-text
 sed -i 's/^ENABLED=1/ENABLED=0/' /etc/default/motd-news
+
+# Setup sshd
+sed -i 's/^#AddressFamily any/AddressFamily inet/' /etc/ssh/sshd_config
+sed -i 's/^#PermitRootLogin prohibit-password/PermitRootLogin no/' /etc/ssh/sshd_config
+systemctl restart sshd
 
 # Setup Docker
 sudo systemctl enable docker
